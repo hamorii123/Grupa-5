@@ -1,10 +1,16 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
 from datetime import datetime
+from PIL import Image, ImageTk
+from baza import create_db
+import sqlite3
 
 class DentalOfficeApp:
     def __init__(self, root):
-
+        # Inicjalizacja bazy danych
+        self.conn = sqlite3.connect('dental_office.db')
+        self.cursor = self.conn.cursor()
+        self.load_data_from_db()
         # Create notebook for multiple tabs
         self.notebook = ttk.Notebook(root)
         self.notebook.pack(fill='both', expand=True)
@@ -31,28 +37,36 @@ class DentalOfficeApp:
         self.notebook.hide(3)
         self.notebook.hide(4)
         self.notebook.hide(5)
-                # Sample data 
-        self.patients = [
-            {"last_name": "Kowalski", "first_name": "Konrad", "pesel": "12345678912", "birth_date": "12-02-2004"},
-            {"last_name": "Nowak", "first_name": "Jan", "pesel": "12345678913", "birth_date": "15-03-1985"},
-            {"last_name": "Wiśniewski", "first_name": "Tomasz", "pesel": "12345678914", "birth_date": "22-07-1992"},
-        ]
+        
+        #        # Sample data 
+        #self.patients = [
+        #    {"last_name": "Kowalski", "first_name": "Konrad", "pesel": "12345678912", "birth_date": "12-02-2004"},
+        #    {"last_name": "Nowak", "first_name": "Jan", "pesel": "12345678913", "birth_date": "15-03-1985"},
+        #    {"last_name": "Wiśniewski", "first_name": "Tomasz", "pesel": "12345678914", "birth_date": "22-07-1992"},
+        #]
 
-        self.appointments = [
-            {"date": "06-05-2025", "time": "10:00", "patient": "Tomasz Kot", "procedure": "konsultacja"},
-            {"date": "06-05-2025", "time": "12:00", "patient": "Dagmara Now.", "procedure": "wypełnienie"},
-            {"date": "06-05-2025", "time": "13:00", "patient": "Zbigniew Pal.", "procedure": "wyrywanie:8"},
-        ]
+        #self.appointments = [
+        #    {"date": "06-05-2025", "time": "10:00", "patient": "Tomasz Kot", "procedure": "konsultacja"},
+        #    {"date": "06-05-2025", "time": "12:00", "patient": "Dagmara Now.", "procedure": "wypełnienie"},
+        #    {"date": "06-05-2025", "time": "13:00", "patient": "Zbigniew Pal.", "procedure": "wyrywanie:8"},
+        #]
 
-        self.payments = [
-            {"date": "23-01-2025", "number": "1234", "amount": "258.00 zł", "status": "Opłacona"},
-            {"date": "28-04-2025", "number": "6579", "amount": "459.30 zł", "status": "Opłacona"},
-        ]
+        #self.payments = [
+        #    {"date": "23-01-2025", "number": "1234", "amount": "258.00 zł", "status": "Opłacona"},
+        #    {"date": "28-04-2025", "number": "6579", "amount": "459.30 zł", "status": "Opłacona"},
+        #]
 
-        self.documentation = [
-            {"date": "23-01-2025", "doctor": "Dr. Majewski", "amount": "258.00 zł"},
-            {"date": "28-04-2025", "doctor": "Dr. Bursztyn", "amount": "459.30 zł"},
-        ]
+        #self.documentation = [
+        #    {"date": "23-01-2025", "doctor": "Dr. Majewski", "amount": "258.00 zł"},
+        #    {"date": "28-04-2025", "doctor": "Dr. Bursztyn", "amount": "459.30 zł"},
+        #]
+        ## Lista użytkowników (email: hasło)
+        #self.users = {
+        #    "marcinkowalski@gmail.com": "1234",
+        #    "admin@dentist.pl": "haslo123",
+        #    "lekarka@clinic.pl": "abcd",
+        #    "test": "1"
+        #}
 
         # Build all interfaces
         self.create_login_interface()
@@ -64,32 +78,61 @@ class DentalOfficeApp:
         
 
         
-    
     def create_login_interface(self):
-        # Login frame
-        login_label = tk.Label(self.login_frame, text="DentiCare", font=('Arial', 24, 'bold'),bg="lightblue")
-        login_label.pack(pady=20)
-        
-        # Email
-        email_label = tk.Label(self.login_frame, text="Email", font=('Arial', 12))
-        email_label.pack()
-        self.email_entry = tk.Entry(self.login_frame, width=40)
-        self.email_entry.pack(pady=5)
-        
-        # Password
-        password_label = tk.Label(self.login_frame, text="Hasło", font=('Arial', 12))
-        password_label.pack()
-        self.password_entry = tk.Entry(self.login_frame, width=40, show="*")
-        self.password_entry.pack(pady=5)
-        
-        # Login button
-        login_button = tk.Button(self.login_frame, text="Zaloguj się", command=self.login, width=20)
-        login_button.pack(pady=20)
-        
-        # Forgot password
-        forgot_button = tk.Button(self.login_frame, text="Zapomniałeś hasła?", command=self.forgot_password, borderwidth=0)
-        forgot_button.pack()
+        self.login_frame.configure(bg="#B6ECF8")
     
+        # Biały prostokąt jako kontener na wszystko
+        container_frame = tk.Frame(self.login_frame, bg="white", relief=tk.RIDGE)
+        container_frame.pack(padx=300, pady=100, fill='both', expand=False)
+    
+        # Czarny napis nad logo
+        title_label = tk.Label(container_frame, text="DentiCare", font=('Arial', 28, 'bold'), fg="black", bg="white")
+        title_label.pack(pady=(15, 10))
+    
+        # Logo pod napisem
+        try:
+            pil_image = Image.open("logo.png")
+            pil_image = pil_image.resize((150, 150), Image.Resampling.LANCZOS)
+            self.logo_image = ImageTk.PhotoImage(pil_image)
+            logo_label = tk.Label(container_frame, image=self.logo_image, bg="white")
+            logo_label.pack(pady=(0, 20))
+        except Exception as e:
+            print("Błąd ładowania obrazu logo:", e)
+            fallback_label = tk.Label(container_frame, text="DentiCare", font=('Arial', 24, 'bold'), bg="white", fg="black")
+            fallback_label.pack(pady=(0, 20))
+    
+        # Email i hasło też do container_frame, żeby były w białym prostokącie
+        # Email
+        email_frame = tk.Frame(container_frame, bg="white")
+        email_frame.pack(pady=5, fill='x', padx=20)
+        email_label = tk.Label(email_frame, text="Email", font=('Arial', 12), bg="white")
+        email_label.pack(anchor="w")
+        self.email_entry = tk.Entry(email_frame, width=40, font=('Arial', 10))
+        self.email_entry.pack(pady=(0, 10), ipady=3, fill='x')
+    
+        # Hasło
+        password_frame = tk.Frame(container_frame, bg="white")
+        password_frame.pack(pady=5, fill='x', padx=20)
+        password_label = tk.Label(password_frame, text="Hasło", font=('Arial', 12), bg="white")
+        password_label.pack(anchor="w")
+        self.password_entry = tk.Entry(password_frame, width=40, show="*", font=('Arial', 10))
+        self.password_entry.pack(pady=(0, 10), ipady=3, fill='x')
+    
+        # Przycisk logowania
+        login_button = tk.Button(container_frame, text="Zaloguj się", 
+                                 command=self.login, width=20,
+                                 bg="black", fg="white",
+                                 font=('Arial', 10, 'bold'),
+                                 relief=tk.RAISED, borderwidth=2)
+        login_button.pack(pady=(20, 10), ipady=5)
+    
+        # Przycisk zapomniałem hasła
+        forgot_button = tk.Button(container_frame, text="Zapomniałeś hasła?", 
+                                  command=self.forgot_password, borderwidth=0,
+                                  bg="white", fg="black", activebackground="white", activeforeground="darkblue",
+                                  font=('Arial', 9))
+        forgot_button.pack(pady=(0, 20))
+
     def create_dashboard_interface(self):
         # Dashboard frame
         dashboard_label = tk.Label(self.dashboard_frame, text="Pulpit", font=('Arial', 24, 'bold'))
@@ -357,20 +400,24 @@ class DentalOfficeApp:
         user_label.pack()
     
     def login(self):
-        email = self.email_entry.get()
-        password = self.password_entry.get()
-        
-        # Simple validation
-        if email and password:
-            self.notebook.hide(0)  # Hide login tab
-            self.notebook.add(self.dashboard_frame)  # Show dashboard
+        email = self.email_entry.get().strip()
+        password = self.password_entry.get().strip()
+
+        # Sprawdź w bazie danych
+        self.cursor.execute("SELECT password FROM users WHERE email = ?", (email,))
+        result = self.cursor.fetchone()
+    
+        if result and result[0] == password:
+            self.notebook.hide(0)
+            self.notebook.add(self.dashboard_frame)
             self.notebook.add(self.calendar_frame)
             self.notebook.add(self.patients_frame)
             self.notebook.add(self.documentation_frame)
             self.notebook.add(self.payments_frame)
-            self.notebook.select(1)  # Select dashboard tab
+            self.notebook.select(1)
         else:
-            messagebox.showerror("Błąd", "Proszę wprowadzić email i hasło")
+            messagebox.showerror("Błąd logowania", "Nieprawidłowy email lub hasło.")
+
     
     def logout(self):
         self.notebook.hide(1)
@@ -384,10 +431,12 @@ class DentalOfficeApp:
         messagebox.showinfo("Przypomnienie hasła", "Link do resetowania hasła został wysłany na podany adres email.")
     
     def show_calendar(self):
-        self.notebook.select(2)
+        #self.notebook.select(2)
+        self.notebook.select(self.calendar_frame)
     
     def show_patients(self):
-        self.notebook.select(3)
+       # self.notebook.select(3)
+       self.notebook.select(self.patients_frame)
     
     def show_new_patient(self):
         # Create a new window for adding a patient
@@ -435,14 +484,74 @@ class DentalOfficeApp:
         add_button.pack(side='left', padx=10)
     
     def save_new_patient(self, window):
-        # Here you would save the new patient to your database
-        messagebox.showinfo("Sukces", "Nowy pacjent został dodany")
-        window.destroy()
+        try:
+            # Pobieranie danych z formularza
+            last_name = self.new_patient_entries["Nazwisko i imię"].get().split()[0]
+            first_name = ' '.join(self.new_patient_entries["Nazwisko i imię"].get().split()[1:])
+            pesel = self.new_patient_entries["Pesel"].get()
+            birth_date = self.new_patient_entries["Data ur."].get()
+            country = self.new_patient_entries["Państwo"].get()
+            city = self.new_patient_entries["Miasto"].get()
+            postal_code = self.new_patient_entries["Kod poczt."].get()
+            street = self.new_patient_entries["Ulica"].get()
+            apartment = self.new_patient_entries["Nr miesz."].get()
+        
+            # Zapisywanie do bazy danych
+            self.cursor.execute('''
+                INSERT INTO patients 
+                (last_name, first_name, pesel, birth_date, country, city, postal_code, street, apartment_number)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (last_name, first_name, pesel, birth_date, country, city, postal_code, street, apartment))
+        
+            self.conn.commit()
+            messagebox.showinfo("Sukces", "Nowy pacjent został dodany")
+        
+            # Odśwież listę pacjentów
+            self.load_data_from_db()
+            self.refresh_patients_tree()
+        
+            window.destroy()
+        except Exception as e:
+            messagebox.showerror("Błąd", f"Wystąpił błąd: {str(e)}")
+            self.conn.rollback()
+    def refresh_patients_tree(self):
+        # Czyszczenie obecnych danych
+        for i in self.patients_tree.get_children():
+            self.patients_tree.delete(i)
     
+        # Dodawanie nowych danych
+        for patient in self.patients:
+            self.patients_tree.insert("", "end", values=(
+                patient["last_name"],
+                patient["first_name"],
+                patient["pesel"],
+                "Profil    Dokumentacja    Patronaż"
+            ))
+    #def search_patient(self):
+    #    search_term = self.search_entry.get()
+    #    # Here you would implement search functionality
+    #    messagebox.showinfo("Wyszukiwanie", f"Wyszukiwanie pacjenta: {search_term}")
     def search_patient(self):
-        search_term = self.search_entry.get()
-        # Here you would implement search functionality
-        messagebox.showinfo("Wyszukiwanie", f"Wyszukiwanie pacjenta: {search_term}")
+        query = self.search_entry.get().lower()
+    
+        # Czyszczenie TreeView
+        for i in self.patients_tree.get_children():
+            self.patients_tree.delete(i)
+    
+        # Wyszukiwanie w bazie danych
+        self.cursor.execute('''
+            SELECT * FROM patients 
+            WHERE LOWER(last_name) LIKE ? OR LOWER(first_name) LIKE ?
+        ''', (f"%{query}%", f"%{query}%"))
+    
+        # Dodawanie wyników
+        for patient in self.cursor.fetchall():
+            self.patients_tree.insert("", "end", values=(
+                patient[1],  # last_name
+                patient[2],  # first_name
+                patient[3],  # pesel
+                "Profil    Dokumentacja    Patronaż"
+            ))
     
     def add_appointment(self):
         messagebox.showinfo("Dodaj wizytę", "Formularz dodawania nowej wizyty")
@@ -455,9 +564,61 @@ class DentalOfficeApp:
     
     def show_settings(self):
         messagebox.showinfo("Ustawienia", "Panel ustawień systemu")
+    def __del__(self):
+        if hasattr(self, 'conn'):
+            self.conn.close()
+    def load_data_from_db(self):
+        """Ładuje dane z bazy danych do atrybutów klasy"""
+        try:
+            # Pobierz pacjentów
+            self.cursor.execute("SELECT id, last_name, first_name, pesel, birth_date FROM patients")
+            self.patients = [
+                {"id": row[0], "last_name": row[1], "first_name": row[2], 
+                 "pesel": row[3], "birth_date": row[4]}
+                for row in self.cursor.fetchall()
+            ]
+            
+            # Pobierz wizyty z nazwiskami pacjentów
+            self.cursor.execute('''
+                SELECT a.date, a.time, p.last_name || ' ' || p.first_name as patient, a.procedure 
+                FROM appointments a
+                JOIN patients p ON a.patient_id = p.id
+            ''')
+            self.appointments = [
+                {"date": row[0], "time": row[1], "patient": row[2], "procedure": row[3]}
+                for row in self.cursor.fetchall()
+            ]
+            
+            # Pobierz płatności
+            self.cursor.execute("SELECT date, number, amount, status FROM payments")
+            self.payments = [
+                {"date": row[0], "number": row[1], "amount": row[2], "status": row[3]}
+                for row in self.cursor.fetchall()
+            ]
+            
+            # Pobierz dokumentację
+            self.cursor.execute('''
+                SELECT d.date, d.doctor, d.amount, p.last_name || ' ' || p.first_name as patient
+                FROM documentation d
+                JOIN patients p ON d.patient_id = p.id
+            ''')
+            self.documentation = [
+                {"date": row[0], "doctor": row[1], "amount": row[2], "patient": row[3]}
+                for row in self.cursor.fetchall()
+            ]
+            
+            # Pobierz użytkowników
+            self.cursor.execute("SELECT email, password FROM users")
+            self.users = {row[0]: row[1] for row in self.cursor.fetchall()}
+            
+        except sqlite3.Error as e:
+            print(f"Błąd podczas ładowania danych z bazy: {e}")
+        print("Dane załadowane: appointments =", hasattr(self, 'appointments'))
+
 
 
 if __name__ == "__main__":
+    create_db();
     root = tk.Tk()
     app = DentalOfficeApp(root)
     root.mainloop()
