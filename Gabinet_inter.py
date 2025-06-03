@@ -22,6 +22,7 @@ class DentalOfficeApp:
         self.documentation_frame = tk.Frame(self.notebook)
         self.payments_frame = tk.Frame(self.notebook)
         self.dashboard_frame = tk.Frame(self.notebook)
+        self.new_patients_frame = tk.Frame(self.notebook)
         
         # Add tabs to notebook
         self.notebook.add(self.login_frame, text='Logowanie')
@@ -134,45 +135,21 @@ class DentalOfficeApp:
         forgot_button.pack(pady=(0, 20))
 
     def create_dashboard_interface(self):
-        # Dashboard frame
-        dashboard_label = tk.Label(self.dashboard_frame, text="Pulpit", font=('Arial', 24, 'bold'))
-        dashboard_label.pack(pady=20)
-        
-        # Today's appointments
-        today_label = tk.Label(self.dashboard_frame, text=f"Dzisiaj: {len(self.appointments)} wizyt", font=('Arial', 14))
-        today_label.pack(pady=10)
-        
-        nearest_label = tk.Label(self.dashboard_frame, text="Najbliższa: 10:00", font=('Arial', 12))
-        nearest_label.pack()
-        
-        # Appointments table
-        columns = ("patient", "procedure", "time")
-        self.appointments_tree = ttk.Treeview(self.dashboard_frame, columns=columns, show="headings", height=5)
-        
-        self.appointments_tree.heading("patient", text="Pacjent")
-        self.appointments_tree.heading("procedure", text="Zabieg")
-        self.appointments_tree.heading("time", text="Godzina")
-        
-        self.appointments_tree.column("patient", width=200)
-        self.appointments_tree.column("procedure", width=200)
-        self.appointments_tree.column("time", width=100)
-        
-        for appointment in self.appointments:
-            self.appointments_tree.insert("", "end", values=(appointment["patient"], appointment["procedure"], appointment["time"]))
-        
-        self.appointments_tree.pack(pady=20)
-        
-        # User info
-        user_frame = tk.Frame(self.dashboard_frame)
-        user_frame.pack(pady=20)
-        
-        user_label = tk.Label(user_frame, text="Marcin Kowalski\nmarcinkowalski@gmail.com", font=('Arial', 12))
-        user_label.pack()
-        
-        # Navigation buttons
-        nav_frame = tk.Frame(self.dashboard_frame)
-        nav_frame.pack()
-        
+
+        self.dashboard_frame.configure(bg="#B6ECF8")
+
+        # FILTRUJ TYLKO WIZYTY NA 2025-05-05
+        target_date = "2025-05-05"
+        todays_appointments = [a for a in self.appointments if a["date"] == target_date]
+
+        # NAVIGATION BAR (cała wysokość po lewej stronie)
+        nav_frame = tk.Frame(self.dashboard_frame, bg="#3585AD", width=200)
+        nav_frame.pack(side="left", fill="y")
+
+        #centrowanie przycisków pionowo
+        button_container = tk.Frame(nav_frame, bg="#3585AD")
+        button_container.pack(expand=True)
+
         buttons = [
             ("Kalendarz wizyt", self.show_calendar),
             ("Pacjenci", self.show_patients),
@@ -180,10 +157,61 @@ class DentalOfficeApp:
             ("Ustawienia", self.show_settings),
             ("Wyloguj się", self.logout)
         ]
-        
+
         for text, command in buttons:
-            btn = tk.Button(nav_frame, text=text, command=command, width=15)
-            btn.pack(side='left', padx=5, pady=5)
+            btn = tk.Button(
+                button_container, text=text, command=command, width=20,
+                bg="#3585AD", fg="white", relief="flat",
+                font=("Arial", 12, "bold"), anchor="center", padx=10
+            )
+            btn.pack(fill="x", pady=5)
+
+        # CONTENT OBOK PANELU
+        content_frame = tk.Frame(self.dashboard_frame, bg="#B6ECF8")
+        content_frame.pack(side="left", fill="both", expand=True)
+
+        # Nagłówek
+        dashboard_label = tk.Label(content_frame, text="Witaj", font=('Arial', 24, 'bold'), fg="black", bg="white", width=30, anchor="center")
+        dashboard_label.pack(pady=20)
+
+        # Kontener dla obu etykiet
+        info_frame = tk.Frame(content_frame, bg="#B6ECF8")
+        info_frame.pack(pady=10)
+
+        # Pierwsza etykieta
+        today_label = tk.Label(info_frame,text=f"Dzisiaj: {len(todays_appointments)} wizyt",font=('Arial', 14),bg="white",padx=10,pady=5)
+        today_label.pack(side="left", padx=(0, 10))  # Margines prawy 10px
+
+        # Druga etykieta
+        nearest_time = todays_appointments[0]["time"] if todays_appointments else "brak"
+        nearest_label = tk.Label(info_frame,text=f"Najbliższa: {nearest_time}",font=('Arial', 14),bg="white",padx=10,pady=5)
+        nearest_label.pack(side="left")
+
+        # Tabela wizyt
+        columns = ("patient", "procedure", "time")
+        self.appointments_tree = ttk.Treeview(content_frame, columns=columns, show="headings", height=9)
+
+        self.appointments_tree.heading("patient", text="Pacjent")
+        self.appointments_tree.heading("procedure", text="Zabieg")
+        self.appointments_tree.heading("time", text="Godzina")
+
+        self.appointments_tree.column("patient", width=200)
+        self.appointments_tree.column("procedure", width=200)
+        self.appointments_tree.column("time", width=100)
+
+        for appointment in todays_appointments:
+            self.appointments_tree.insert("", "end", values=(appointment["patient"], appointment["procedure"], appointment["time"]))
+
+        self.appointments_tree.pack(pady=10)
+
+        # User info
+        user_frame = tk.Frame(content_frame)
+        user_frame.pack(pady=20)
+
+
+
+
+
     
     def create_calendar_interface(self):
         # Calendar frame
@@ -261,8 +289,6 @@ class DentalOfficeApp:
         user_frame = tk.Frame(self.calendar_frame)
         user_frame.pack(pady=20)
         
-        user_label = tk.Label(user_frame, text="Marcin Kowalski\nmarcinkowalski@gmail.com", font=('Arial', 12))
-        user_label.pack()
     
     def create_patients_interface(self):
         # Patients frame
@@ -301,7 +327,7 @@ class DentalOfficeApp:
                 patient["last_name"],
                 patient["first_name"],
                 patient["pesel"],
-                "Profil    Dokumentacja    Patronaż"
+                "Profil    Dokumentacja    Płatności"
             ))
         
         self.patients_tree.pack(fill='both', expand=True, padx=20, pady=10)
@@ -350,8 +376,7 @@ class DentalOfficeApp:
         user_frame = tk.Frame(self.documentation_frame)
         user_frame.pack(pady=20)
         
-        user_label = tk.Label(user_frame, text="Marcin Kowalski\nmarcinkowalski@gmail.com", font=('Arial', 12))
-        user_label.pack()
+
     
     def create_payments_interface(self):
         # Payments frame
@@ -396,8 +421,6 @@ class DentalOfficeApp:
         user_frame = tk.Frame(self.payments_frame)
         user_frame.pack(pady=20)
         
-        user_label = tk.Label(user_frame, text="Marcin Kowalski\nmarcinkowalski@gmail.com", font=('Arial', 12))
-        user_label.pack()
     
     def login(self):
         email = self.email_entry.get().strip()
@@ -440,7 +463,7 @@ class DentalOfficeApp:
     
     def show_new_patient(self):
         # Create a new window for adding a patient
-        new_window = tk.Toplevel(self.root)
+        new_window = tk.Toplevel(self.new_patients_frame)
         new_window.title("Dodaj nowego pacjenta")
         new_window.geometry("500x500")
         
@@ -448,14 +471,14 @@ class DentalOfficeApp:
         tk.Label(new_window, text="DODAJ PACJENTA", font=('Arial', 16, 'bold')).pack(pady=10)
         
         fields = [
-            ("Nazwisko i imię", "Michelel Bogdan"),
-            ("Pesel", "12345678912"),
-            ("Data ur.", "12-02-2004"),
-            ("Państwo", "Polska"),
-            ("Miasto", "Gabrilów"),
-            ("Kod poczt.", "72-100"),
-            ("Ulica", "Kon. 3 imija"),
-            ("Nr miesz.", "3/5"),
+            ("Nazwisko i imię", ""),
+            ("Pesel", ""),
+            ("Data ur.", ""),
+            ("Państwo", ""),
+            ("Miasto", ""),
+            ("Kod poczt.", ""),
+            ("Ulica", ""),
+            ("Nr miesz.", ""),
         ]
         
         self.new_patient_entries = {}
@@ -580,7 +603,7 @@ class DentalOfficeApp:
             
             # Pobierz wizyty z nazwiskami pacjentów
             self.cursor.execute('''
-                SELECT a.date, a.time, p.last_name || ' ' || p.first_name as patient, a.procedure 
+                SELECT DISTINCT a.date, a.time, p.last_name || ' ' || p.first_name as patient, a.procedure 
                 FROM appointments a
                 JOIN patients p ON a.patient_id = p.id
             ''')
@@ -613,11 +636,12 @@ class DentalOfficeApp:
             
         except sqlite3.Error as e:
             print(f"Błąd podczas ładowania danych z bazy: {e}")
-        print("Dane załadowane: appointments =", hasattr(self, 'appointments'))
+        #print("Dane załadowane: appointments =", hasattr(self, 'appointments'))
 
 
 
 if __name__ == "__main__":
+
     create_db();
     root = tk.Tk()
     app = DentalOfficeApp(root)
