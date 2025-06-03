@@ -82,10 +82,12 @@ def create_db():
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)''', patients)
 
     # Dodanie przykładowych wizyt (zakładając id pacjentów 1,2,3)
+
     appointments = [
-        ("2025-05-06", "10:00", 3, "konsultacja"),
-        ("2025-05-06", "12:00", 2, "wypełnienie"),
-        ("2025-05-06", "13:00", 1, "wyrywanie:8")
+        ("2025-05-05", "10:00", 1, "konsultacja"),
+        ("2025-05-05", "12:00", 2, "wypełnienie"),
+        ("2025-05-05", "13:00", 3, "wyrywanie:8"),
+        ("2026-05-05", "11:00", 1, "wybielanie")
     ]
     c.executemany('''
         INSERT OR IGNORE INTO appointments (date, time, patient_id, procedure) VALUES (?, ?, ?, ?)
@@ -108,6 +110,8 @@ def create_db():
     c.executemany('''
         INSERT OR IGNORE INTO documentation (date, doctor, amount, patient_id) VALUES (?, ?, ?, ?)
     ''', documentation)
+    #c.execute("DELETE FROM appointments")
+    
 
     conn.commit()
     conn.close()
