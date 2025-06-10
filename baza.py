@@ -4,7 +4,8 @@ import sqlite3
 def create_db():
     conn = sqlite3.connect('dental_office.db')
     c = conn.cursor()
-
+   
+    #c.execute("DELETE FROM payments")  # usuwa wszystkie płatności
     # Tworzenie tabel
     c.execute('''
         CREATE TABLE IF NOT EXISTS users (
@@ -30,7 +31,7 @@ def create_db():
     ''')
 
     c.execute('''
-        CREATE TABLE IF NOT EXISTS appointments (
+        CREATE TABLE IF NOT EXISTS appointments ( 
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             date TEXT NOT NULL,
             time TEXT NOT NULL,
@@ -43,10 +44,13 @@ def create_db():
     c.execute('''
         CREATE TABLE IF NOT EXISTS payments (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            patient_id INTEGER NOT NULL,
             date TEXT NOT NULL,
-            number TEXT,
-            amount TEXT,
-            status TEXT
+            number TEXT UNIQUE,
+            amount REAL NOT NULL,
+            status TEXT NOT NULL,
+            FOREIGN KEY(patient_id) REFERENCES patients(id),
+            UNIQUE(patient_id, date, amount)
         )
     ''')
 
@@ -92,16 +96,27 @@ def create_db():
     c.executemany('''
         INSERT OR IGNORE INTO appointments (date, time, patient_id, procedure) VALUES (?, ?, ?, ?)
     ''', appointments)
-
+    #c.execute("ALTER TABLE payments ADD COLUMN patient_id INTEGER")
     # Dodanie przykładowych płatności
     payments = [
-        ("2025-01-23", "1234", "258.00 zł", "Opłacona"),
-        ("2025-04-28", "6579", "459.30 zł", "Opłacona")
+        # Format: (patient_id, date, number, amount, status)
+        (1, "2025-01-23", "1234", 258.00, "Opłacona"),
+        (1, "2025-04-28", "6579", 459.30, "Opłacona"),
+        (2, "2025-05-10", "8888", 120.50, "Do zapłaty")
     ]
-    c.executemany('''
-        INSERT OR IGNORE INTO payments (date, number, amount, status) VALUES (?, ?, ?, ?)
-    ''', payments)
-
+    #c.executemany('''
+    #    INSERT OR IGNORE INTO payments (patient_id, date, number, amount, status)
+    #    VALUES (?, ?, ?, ?, ?)
+    #''', payments)
+    for payment in payments:
+        try:
+            c.execute('''
+                INSERT INTO payments (patient_id, date, number, amount, status)
+                VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(number) DO NOTHING
+            ''', payment)
+        except sqlite3.Error as e:
+            print(f"Błąd przy wstawianiu płatności: {e}")
     # Dodanie przykładowej dokumentacji
     documentation = [
         ("2025-01-23", "Dr. Majewski", "258.00 zł", 1),
