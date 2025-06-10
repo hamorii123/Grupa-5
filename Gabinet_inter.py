@@ -7,6 +7,7 @@ import sqlite3
 
 class DentalOfficeApp:
     def __init__(self, root):
+        self.root = root #zmiana???
         # Inicjalizacja bazy danych
         self.conn = sqlite3.connect('dental_office.db')
         self.cursor = self.conn.cursor()
@@ -291,15 +292,16 @@ class DentalOfficeApp:
         
     
     def create_patients_interface(self):
+        self.patients_frame.configure(bg="#B6ECF8")
         # Patients frame
-        patients_label = tk.Label(self.patients_frame, text="Lista pacjentów", font=('Arial', 24, 'bold'))
+        patients_label = tk.Label(self.patients_frame, text="Lista pacjentów", font=('Arial', 24, 'bold'),bg="white")
         patients_label.pack(pady=20)
         
         # Search frame
-        search_frame = tk.Frame(self.patients_frame)
+        search_frame = tk.Frame(self.patients_frame,bg="white")
         search_frame.pack(fill='x', padx=20, pady=10)
         
-        search_label = tk.Label(search_frame, text="Wyszukaj:")
+        search_label = tk.Label(search_frame, text="Wyszukaj:", bg="white")
         search_label.pack(side='left')
         
         self.search_entry = tk.Entry(search_frame, width=40)
@@ -337,90 +339,526 @@ class DentalOfficeApp:
         add_button.pack(pady=20)
     
     def create_documentation_interface(self):
+        self.documentation_frame.configure(bg="#B6ECF8")
         # Documentation frame
-        doc_label = tk.Label(self.documentation_frame, text="DOKUMENTACJA", font=('Arial', 24, 'bold'))
+        doc_label = tk.Label(self.documentation_frame, text="DOKUMENTACJA", font=('Arial', 24, 'bold'), bg="white")
         doc_label.pack(pady=20)
-        
-        patient_label = tk.Label(self.documentation_frame, text="Konrad Kowalski", font=('Arial', 16))
-        patient_label.pack()
-        
+    
+        # Search frame
+        search_frame = tk.Frame(self.documentation_frame, bg="white")
+        search_frame.pack(pady=10)
+    
+        search_label = tk.Label(search_frame, text="Wyszukaj pacjenta:", font=('Arial', 12), bg="white")
+        search_label.pack(side=tk.LEFT, padx=5)
+    
+        self.patient_search = tk.Entry(search_frame, width=30, bg="white")
+        self.patient_search.pack(side=tk.LEFT, padx=5)
+    
+        search_button = tk.Button(search_frame, text="Szukaj", command=self.search_patient_documentation, bg="white")
+        search_button.pack(side=tk.LEFT, padx=5)
+    
+        # Patient info label
+        self.current_patient_label = tk.Label(self.documentation_frame, text="", font=('Arial', 16), bg="white")
+        self.current_patient_label.pack(pady=10)
+    
         # Documentation table
         columns = ("date", "doctor", "amount", "actions")
-        self.doc_tree = ttk.Treeview(self.documentation_frame, columns=columns, show="headings", height=5)
-        
+        self.doc_tree = ttk.Treeview(self.documentation_frame, columns=columns, show="headings", height=10)
+    
         self.doc_tree.heading("date", text="Data wizyty")
         self.doc_tree.heading("doctor", text="Lekarz")
         self.doc_tree.heading("amount", text="Kwota")
         self.doc_tree.heading("actions", text="Akcje")
-        
+    
         self.doc_tree.column("date", width=120)
         self.doc_tree.column("doctor", width=200)
         self.doc_tree.column("amount", width=100)
         self.doc_tree.column("actions", width=200)
-        
-        for doc in self.documentation:
-            self.doc_tree.insert("", "end", values=(
-                doc["date"],
-                doc["doctor"],
-                doc["amount"],
-                "Szczegóły    Edytuj"
-            ))
-        
+    
         self.doc_tree.pack(fill='both', expand=True, padx=20, pady=10)
-        
+    
         # Add documentation button
-        add_button = tk.Button(self.documentation_frame, text="DODAJ", command=self.add_documentation, width=20)
+        add_button = tk.Button(self.documentation_frame, text="DODAJ DOKUMENTACJĘ", 
+                              command=self.add_documentation, width=20)
         add_button.pack(pady=20)
+
+    def search_patient_documentation(self):
+        search_term = self.patient_search.get().strip()
+        if not search_term:
+            messagebox.showwarning("Uwaga", "Wprowadź dane do wyszukiwania")
+            return
+    
+        try:
+            self.cursor.execute('''
+                SELECT id, last_name, first_name, pesel 
+                FROM patients 
+                WHERE last_name LIKE ? OR first_name LIKE ? OR pesel LIKE ?
+            ''', (f'%{search_term}%', f'%{search_term}%', f'%{search_term}%'))
         
-        # User info
-        user_frame = tk.Frame(self.documentation_frame)
-        user_frame.pack(pady=20)
+            patients = self.cursor.fetchall()
         
+            if not patients:
+                messagebox.showinfo("Info", "Nie znaleziono pacjentów")
+                return
+        
+            if len(patients) > 1:
+                # Jeśli wielu pacjentów, pokaż listę do wyboru
+                self.show_patient_selection(patients)
+            else:
+                # Jeśli tylko jeden, pokaż jego dokumentację
+                self.show_patient_documentation(patients[0][0], 
+                                              f"{patients[0][1]} {patients[0][2]}")
+            
+        except sqlite3.Error as e:
+            messagebox.showerror("Błąd", f"Błąd bazy danych: {e}")
+
+    def show_patient_selection(self, patients):
+        selection_window = tk.Toplevel(self.root)
+        selection_window.title("Wybierz pacjenta")
+    
+        tree = ttk.Treeview(selection_window, columns=("last_name", "first_name", "pesel"), show="headings")
+        tree.heading("last_name", text="Nazwisko")
+        tree.heading("first_name", text="Imię")
+        tree.heading("pesel", text="PESEL")
+    
+        for patient in patients:
+            tree.insert("", "end", values=(patient[1], patient[2], patient[3]), iid=patient[0])
+    
+        tree.pack(fill='both', expand=True, padx=10, pady=10)
+    
+        def on_select():
+            selected_item = tree.focus()
+            if selected_item:
+                patient_id = int(selected_item)
+                patient_data = tree.item(selected_item)['values']
+                patient_name = f"{patient_data[0]} {patient_data[1]}"
+                selection_window.destroy()
+                self.show_patient_documentation(patient_id, patient_name)
+    
+        select_button = tk.Button(selection_window, text="Wybierz", command=on_select)
+        select_button.pack(pady=10)
+
+    def show_patient_documentation(self, patient_id, patient_name):
+        self.current_patient_label.config(text=patient_name)
+        self.current_patient_id = patient_id
+
+        # Wyczyść poprzednie dane
+        for item in self.doc_tree.get_children():
+            self.doc_tree.delete(item)
+
+        try:
+            self.cursor.execute('''
+                SELECT date, doctor, amount, id 
+                FROM documentation 
+                WHERE patient_id = ?
+                ORDER BY date DESC
+            ''', (patient_id,))
+    
+            for row in self.cursor.fetchall():
+                doc_id = row[3]
+                amount_value = "N/A" # Default value
+                try:
+                    # Attempt to convert to float
+                    amount_value = f"{float(row[2]):.2f} zł"
+                except (ValueError, TypeError):
+                    # Handle cases where row[2] is not a valid number string
+                    amount_value = f"{row[2]} zł (invalid)" # Or just "N/A"
+
+                self.doc_tree.insert("", "end", values=(
+                    row[0],
+                    row[1],
+                    amount_value,
+                    "Szczegóły    Edytuj"
+                ), iid=doc_id)
+        
+        except sqlite3.Error as e:
+            messagebox.showerror("Błąd", f"Błąd przy ładowaniu dokumentacji: {e}")
+
+    def add_documentation(self):
+        if not hasattr(self, 'current_patient_id') or not self.current_patient_id:
+            messagebox.showwarning("Uwaga", "Najpierw wybierz pacjenta")
+            return
+    
+        add_window = tk.Toplevel(self.root)
+        add_window.title("Dodaj dokumentację")
+    
+        # Formularz dodawania dokumentacji (bez notes)
+        tk.Label(add_window, text="Data wizyty (RRRR-MM-DD):").grid(row=0, column=0, padx=5, pady=5, sticky='e')
+        date_entry = tk.Entry(add_window)
+        date_entry.grid(row=0, column=1, padx=5, pady=5)
+    
+        tk.Label(add_window, text="Lekarz:").grid(row=1, column=0, padx=5, pady=5, sticky='e')
+        doctor_entry = tk.Entry(add_window)
+        doctor_entry.grid(row=1, column=1, padx=5, pady=5)
+    
+        tk.Label(add_window, text="Kwota:").grid(row=2, column=0, padx=5, pady=5, sticky='e')
+        amount_entry = tk.Entry(add_window)
+        amount_entry.grid(row=2, column=1, padx=5, pady=5)
+    
+        def save_documentation():
+            try:
+                # Walidacja danych
+                if not date_entry.get() or not doctor_entry.get() or not amount_entry.get():
+                    messagebox.showwarning("Uwaga", "Wypełnij wszystkie wymagane pola")
+                    return
+                
+                # Sprawdzenie poprawności kwoty
+                amount = amount_entry.get()
+                if not amount.replace('.', '').isdigit():  # Prosta walidacja kwoty
+                    messagebox.showerror("Błąd", "Nieprawidłowy format kwoty. Wprowadź liczbę.")
+                    return
+            
+                self.cursor.execute('''
+                    INSERT INTO documentation (patient_id, date, doctor, amount)
+                    VALUES (?, ?, ?, ?)
+                ''', (
+                    self.current_patient_id,
+                    date_entry.get(),
+                    doctor_entry.get(),
+                    amount
+                ))
+                self.conn.commit()
+                messagebox.showinfo("Sukces", "Dokumentacja dodana pomyślnie")
+                add_window.destroy()
+                self.show_patient_documentation(self.current_patient_id, self.current_patient_label.cget("text"))
+            except Exception as e:
+                messagebox.showerror("Błąd", f"Nie udało się dodać dokumentacji: {e}")
+    
+        save_button = tk.Button(add_window, text="Zapisz", command=save_documentation)
+        save_button.grid(row=3, column=1, pady=10, sticky='e')
 
     
+    
     def create_payments_interface(self):
-        # Payments frame
-        payments_label = tk.Label(self.payments_frame, text="PŁATNOŚCI", font=('Arial', 24, 'bold'))
-        payments_label.pack(pady=20)
-        
-        patient_label = tk.Label(self.payments_frame, text="Konrad Kowalski", font=('Arial', 16))
-        patient_label.pack()
-        
-        # Payments table
+        self.payments_frame.configure(bg="#B6ECF8")
+        tk.Label(self.payments_frame, text="PŁATNOŚCI", font=('Arial', 24, 'bold')).pack(pady=20)
+
+        # Ramka wyszukiwania dla płatności
+        search_payments_frame = tk.Frame(self.payments_frame, bg="white")
+        search_payments_frame.pack(pady=10)
+
+        tk.Label(search_payments_frame, text="Wyszukaj pacjenta (Nazwisko/Imię/PESEL):", bg="white").pack(side=tk.LEFT, padx=5)
+        self.patient_search_payments = tk.Entry(search_payments_frame, width=40)
+        self.patient_search_payments.pack(side=tk.LEFT, padx=5)
+        self.patient_search_payments.bind("<Return>", lambda event: self.search_patient_payments())
+
+        search_button_payments = tk.Button(search_payments_frame, text="Wyszukaj płatności pacjenta", command=self.search_patient_payments, bg="white")
+        search_button_payments.pack(side=tk.LEFT, padx=5)
+
+        self.current_patient_label_payments = tk.Label(self.payments_frame, text="Brak wybranego pacjenta", font=('Arial', 12, 'bold'), bg="white")
+        self.current_patient_label_payments.pack(pady=10)
+
+        # POPRAWIONE NAZWY KOLUMN W TREEVIEW
         columns = ("date", "number", "amount", "status", "actions")
-        self.payments_tree = ttk.Treeview(self.payments_frame, columns=columns, show="headings", height=5)
-        
-        self.payments_tree.heading("date", text="Data wizyty")
-        self.payments_tree.heading("number", text="Numer płatności")
+        self.payments_tree = ttk.Treeview(self.payments_frame, columns=columns, show="headings", height=10)
+
+        self.payments_tree.heading("date", text="Data Płatności")
+        self.payments_tree.heading("number", text="Numer Płatności")
         self.payments_tree.heading("amount", text="Kwota")
         self.payments_tree.heading("status", text="Status")
-        self.payments_tree.heading("actions", text="Szczegóły")
-        
-        self.payments_tree.column("date", width=120)
-        self.payments_tree.column("number", width=120)
-        self.payments_tree.column("amount", width=100)
-        self.payments_tree.column("status", width=100)
-        self.payments_tree.column("actions", width=100)
-        
-        for payment in self.payments:
-            self.payments_tree.insert("", "end", values=(
-                payment["date"],
-                payment["number"],
-                payment["amount"],
-                payment["status"],
-                "Szczegóły"
-            ))
-        
+        self.payments_tree.heading("actions", text="Akcje")
+
+        self.payments_tree.column("date", width=120, anchor=tk.CENTER)
+        self.payments_tree.column("number", width=150, anchor=tk.W)
+        self.payments_tree.column("amount", width=100, anchor=tk.E)
+        self.payments_tree.column("status", width=100, anchor=tk.CENTER)
+        self.payments_tree.column("actions", width=150, anchor=tk.CENTER)
+
         self.payments_tree.pack(fill='both', expand=True, padx=20, pady=10)
+
+        self.payments_tree.bind("<Button-1>", self.on_payments_tree_click)
+
+        add_payment_button = tk.Button(self.payments_frame, text="DODAJ PŁATNOŚĆ", command=self.add_payment)
+        add_payment_button.pack(pady=10)
+
+    def search_patient_payments(self):
+        """
+        Wyszukuje pacjenta na podstawie podanego terminu i wyświetla jego płatności.
+        """
+        search_term = self.patient_search_payments.get().strip()
+        if not search_term:
+            messagebox.showwarning("Uwaga", "Wprowadź ID, nazwisko, imię lub PESEL do wyszukiwania")
+            return
         
-        # Add payment button
-        add_button = tk.Button(self.payments_frame, text="DODAJ", command=self.add_payment, width=20)
-        add_button.pack(pady=20)
+        try:
+            self.cursor.execute('''
+                SELECT id, first_name, last_name, pesel
+                FROM patients
+                WHERE id = ? OR last_name LIKE ? OR first_name LIKE ? OR pesel LIKE ?
+            ''', (search_term, f'%{search_term}%', f'%{search_term}%', f'%{search_term}%'))
+
+            patients = self.cursor.fetchall()
+
+            if not patients:
+                messagebox.showinfo("Info", "Nie znaleziono pacjentów pasujących do kryteriów.")
+                self.current_patient_id = None
+                self.current_patient_name = ""
+                self.current_patient_label_payments.config(text="Brak wybranego pacjenta")
+                for item in self.payments_tree.get_children():
+                    self.payments_tree.delete(item)
+                return
+
+            if len(patients) > 1:
+                self.show_patient_selection_for_payments(patients)
+            else:
+                patient_id = patients[0][0]
+                patient_name = f"{patients[0][1]} {patients[0][2]}"
+                self.show_patient_payments(patient_id, patient_name)
+
+        except sqlite3.Error as e:
+            messagebox.showerror("Błąd", f"Błąd bazy danych podczas wyszukiwania pacjentów: {e}")
+        except Exception as e:
+            messagebox.showerror("Błąd", f"Wystąpił nieoczekiwany błąd: {e}")
+
+    def show_patient_selection_for_payments(self, patients):
+        """
+        Wyświetla okno z listą pacjentów do wyboru, gdy wyszukiwanie zwróci wiele wyników.
+        """
+        selection_window = tk.Toplevel(self.root)
+        selection_window.title("Wybierz pacjenta")
+
+        tk.Label(selection_window, text="Znaleziono wielu pacjentów. Wybierz jednego:").pack(pady=10)
+
+        tree = ttk.Treeview(selection_window, columns=("id", "first_name", "last_name", "pesel"), show="headings")
+        tree.heading("id", text="ID")
+        tree.heading("first_name", text="Imię")
+        tree.heading("last_name", text="Nazwisko")
+        tree.heading("pesel", text="PESEL")
+
+        tree.column("id", width=50)
+        tree.column("first_name", width=120)
+        tree.column("last_name", width=120)
+        tree.column("pesel", width=100)
+
+        for patient in patients:
+            tree.insert("", "end", values=(patient[0], patient[1], patient[2], patient[3]), iid=patient[0])
+
+        tree.pack(fill='both', expand=True, padx=10, pady=10)
+
+        def on_select():
+            selected_item = tree.focus()
+            if selected_item:
+                patient_id = int(selected_item)
+                patient_data = tree.item(selected_item)['values']
+                patient_name = f"{patient_data[1]} {patient_data[2]}"
+                selection_window.destroy()
+                self.show_patient_payments(patient_id, patient_name)
+
+        select_button = tk.Button(selection_window, text="Wybierz", command=on_select)
+        select_button.pack(pady=10)
+
+    def show_patient_payments(self, patient_id, patient_name):
+        """
+        Wyświetla płatności dla wybranego pacjenta w Treeview.
+        """
+        self.current_patient_label_payments.config(text=f"Płatności dla pacjenta: {patient_name}")
+        self.current_patient_id = patient_id
+        self.current_patient_name = patient_name
+
+        for item in self.payments_tree.get_children():
+            self.payments_tree.delete(item)
         
-        # User info
-        user_frame = tk.Frame(self.payments_frame)
-        user_frame.pack(pady=20)
-        
+        try:
+            # POPRAWIONA WERSJA ZAPYTANIA SELECT DLA WYŚWIETLANIA W TREEVIEW
+            self.cursor.execute('''
+                SELECT date, number, amount, status, id
+                FROM payments
+                WHERE patient_id = ?
+                ORDER BY date DESC
+            ''', (patient_id,))
+            
+            for row in self.cursor.fetchall():
+                payment_id = row[4]
+                amount_value = "N/A"
+                try:
+                    amount_value = f"{float(row[2]):.2f} zł"
+                except (ValueError, TypeError):
+                    amount_value = f"{row[2]} zł (nieprawidłowa)" 
+
+                self.payments_tree.insert("", "end", values=(
+                    row[0], # Odpowiada kolumnie 'date'
+                    row[1], # Odpowiada kolumnie 'number'
+                    amount_value,
+                    row[3], # Odpowiada kolumnie 'status'
+                    "Szczegóły / Edytuj"
+                ), iid=payment_id)
+        except sqlite3.Error as e:
+            messagebox.showerror("Błąd", f"Błąd przy ładowaniu płatności: {e}")
+
+    def on_payments_tree_click(self, event):
+        """
+        Obsługuje kliknięcia w Treeview płatności, umożliwiając wyświetlenie szczegółów lub edycję.
+        """
+        item = self.payments_tree.identify_row(event.y)
+        col = self.payments_tree.identify_column(event.x)
+
+        if item and col == '#5':  # Kolumna "Akcje"
+            payment_id = int(self.payments_tree.item(item, "iid"))
+            x_in_cell = event.x - self.payments_tree.bbox(item, col)[0]
+            if x_in_cell < self.payments_tree.column('#5', width) / 2:
+                 self.show_payment_details(payment_id)
+            else:
+                 self.edit_payment(payment_id)
+
+    def show_payment_details(self, payment_id):
+        """
+        Wyświetla szczegóły wybranej płatności w nowym oknie.
+        """
+        payment_data = next((p for p in self.payments if p["id"] == payment_id), None)
+        if not payment_data:
+            messagebox.showerror("Błąd", "Nie znaleziono płatności.")
+            return
+
+        details_window = tk.Toplevel(self.root)
+        details_window.title("Szczegóły Płatności")
+
+        tk.Label(details_window, text=f"Pacjent: {payment_data['patient_name']}", font=('Arial', 12, 'bold')).pack(pady=5)
+        tk.Label(details_window, text=f"Data Płatności: {payment_data['payment_date']}").pack(pady=2) # Używamy klucza ze słownika
+        tk.Label(details_window, text=f"Numer Płatności: {payment_data['payment_number']}").pack(pady=2) # Używamy klucza ze słownika
+        tk.Label(details_window, text=f"Kwota: {payment_data['amount']:.2f} zł").pack(pady=2)
+        tk.Label(details_window, text=f"Status: {payment_data['status']}").pack(pady=2)
+
+        close_button = tk.Button(details_window, text="Zamknij", command=details_window.destroy)
+        close_button.pack(pady=10)
+
+    def add_payment(self):
+        """
+        Otwiera okno do dodawania nowej płatności dla aktualnie wybranego pacjenta.
+        """
+        if not self.current_patient_id:
+            messagebox.showwarning("Uwaga", "Najpierw wybierz pacjenta w zakładce 'Płatności' lub 'Pacjenci' (szukając).")
+            return
+
+        add_window = tk.Toplevel(self.root)
+        add_window.title(f"Dodaj płatność dla: {self.current_patient_name}")
+
+        tk.Label(add_window, text="Data Płatności (RRRR-MM-DD):").grid(row=0, column=0, padx=5, pady=5, sticky='e')
+        date_entry = tk.Entry(add_window) # Zmieniono nazwę zmiennej
+        date_entry.grid(row=0, column=1, padx=5, pady=5)
+
+        tk.Label(add_window, text="Numer Płatności:").grid(row=1, column=0, padx=5, pady=5, sticky='e')
+        number_entry = tk.Entry(add_window) # Zmieniono nazwę zmiennej
+        number_entry.grid(row=1, column=1, padx=5, pady=5)
+
+        tk.Label(add_window, text="Kwota:").grid(row=2, column=0, padx=5, pady=5, sticky='e')
+        amount_entry = tk.Entry(add_window)
+        amount_entry.grid(row=2, column=1, padx=5, pady=5)
+
+        tk.Label(add_window, text="Status:").grid(row=3, column=0, padx=5, pady=5, sticky='e')
+        status_options = ["Zapłacono", "Do zapłaty", "Częściowo zapłacono", "Anulowano"]
+        status_var = tk.StringVar(add_window)
+        status_var.set(status_options[0])
+        status_menu = ttk.OptionMenu(add_window, status_var, *status_options)
+        status_menu.grid(row=3, column=1, padx=5, pady=5, sticky='ew')
+
+        def save_payment():
+            try:
+                # Używamy zmiennych z nowymi nazwami
+                if not date_entry.get() or not number_entry.get() or not amount_entry.get():
+                    messagebox.showwarning("Uwaga", "Wypełnij wszystkie wymagane pola.")
+                    return
+                
+                amount_str = amount_entry.get().replace(',', '.')
+                try:
+                    amount = float(amount_str)
+                except ValueError:
+                    messagebox.showerror("Błąd", "Nieprawidłowy format kwoty. Wprowadź liczbę.")
+                    return
+
+                # POPRAWIONA WERSJA ZAPYTANIA INSERT
+                self.cursor.execute('''
+                    INSERT INTO payments (patient_id, date, number, amount, status)
+                    VALUES (?, ?, ?, ?, ?)
+                ''', (
+                    self.current_patient_id,
+                    date_entry.get(),    # Odpowiada kolumnie 'date'
+                    number_entry.get(),  # Odpowiada kolumnie 'number'
+                    amount,
+                    status_var.get()
+                ))
+                self.conn.commit()
+                messagebox.showinfo("Sukces", "Płatność dodana pomyślnie!")
+                add_window.destroy()
+                self.load_data_from_db()
+                self.show_patient_payments(self.current_patient_id, self.current_patient_name)
+            except sqlite3.IntegrityError:
+                messagebox.showerror("Błąd", "Płatność o podanym numerze już istnieje. Użyj unikalnego numeru.")
+            except Exception as e:
+                messagebox.showerror("Błąd", f"Nie udało się dodać płatności: {e}")
+
+        save_button = tk.Button(add_window, text="Zapisz", command=save_payment)
+        save_button.grid(row=4, column=1, pady=10, sticky='e')
+
+    def edit_payment(self, payment_id):
+        """
+        Otwiera okno do edycji istniejącej płatności.
+        """
+        payment_data = next((p for p in self.payments if p["id"] == payment_id), None)
+        if not payment_data:
+            messagebox.showerror("Błąd", "Nie znaleziono płatności do edycji.")
+            return
+
+        edit_window = tk.Toplevel(self.root)
+        edit_window.title("Edytuj płatność")
+
+        tk.Label(edit_window, text="Data Płatności (RRRR-MM-DD):").grid(row=0, column=0, padx=5, pady=5, sticky='e')
+        date_entry = tk.Entry(edit_window) # Zmieniono nazwę zmiennej
+        date_entry.grid(row=0, column=1, padx=5, pady=5)
+        date_entry.insert(0, payment_data['payment_date']) # Używamy klucza ze słownika
+
+        tk.Label(edit_window, text="Numer Płatności:").grid(row=1, column=0, padx=5, pady=5, sticky='e')
+        number_entry = tk.Entry(edit_window) # Zmieniono nazwę zmiennej
+        number_entry.grid(row=1, column=1, padx=5, pady=5)
+        number_entry.insert(0, payment_data['payment_number']) # Używamy klucza ze słownika
+        number_entry.config(state='disabled') # Numeru płatności nie powinno się zmieniać
+
+        tk.Label(edit_window, text="Kwota:").grid(row=2, column=0, padx=5, pady=5, sticky='e')
+        amount_entry = tk.Entry(edit_window)
+        amount_entry.grid(row=2, column=1, padx=5, pady=5)
+        amount_entry.insert(0, str(payment_data['amount']))
+
+        tk.Label(edit_window, text="Status:").grid(row=3, column=0, padx=5, pady=5, sticky='e')
+        status_options = ["Zapłacono", "Do zapłaty", "Częściowo zapłacono", "Anulowano"]
+        status_var = tk.StringVar(edit_window)
+        status_var.set(payment_data['status'])
+        status_menu = ttk.OptionMenu(edit_window, status_var, *status_options)
+        status_menu.grid(row=3, column=1, padx=5, pady=5, sticky='ew')
+
+        def save_edit():
+            try:
+                # Używamy zmiennych z nowymi nazwami
+                if not date_entry.get() or not amount_entry.get():
+                    messagebox.showwarning("Uwaga", "Wypełnij wszystkie wymagane pola (Data Płatności, Kwota).")
+                    return
+                
+                amount_str = amount_entry.get().replace(',', '.')
+                try:
+                    amount = float(amount_str)
+                except ValueError:
+                    messagebox.showerror("Błąd", "Nieprawidłowy format kwoty. Wprowadź liczbę.")
+                    return
+
+                # POPRAWIONA WERSJA ZAPYTANIA UPDATE
+                self.cursor.execute('''
+                    UPDATE payments
+                    SET date = ?, amount = ?, status = ?
+                    WHERE id = ?
+                ''', (date_entry.get(), amount, status_var.get(), payment_id))
+                self.conn.commit()
+                messagebox.showinfo("Sukces", "Płatność zaktualizowana pomyślnie!")
+                edit_window.destroy()
+                self.load_data_from_db()
+                self.show_patient_payments(self.current_patient_id, self.current_patient_name)
+            except Exception as e:
+                messagebox.showerror("Błąd", f"Nie udało się zaktualizować płatności: {e}")
+
+        save_button = tk.Button(edit_window, text="Zapisz Zmiany", command=save_edit)
+        save_button.grid(row=4, column=1, pady=10, sticky='e')
+
+
+    def __del__(self):
+        if self.conn:
+            self.conn.close()
     
     def login(self):
         email = self.email_entry.get().strip()
@@ -548,7 +986,7 @@ class DentalOfficeApp:
                 patient["last_name"],
                 patient["first_name"],
                 patient["pesel"],
-                "Profil    Dokumentacja    Patronaż"
+                "Profil    Dokumentacja    Płatności"
             ))
     #def search_patient(self):
     #    search_term = self.search_entry.get()
@@ -573,17 +1011,17 @@ class DentalOfficeApp:
                 patient[1],  # last_name
                 patient[2],  # first_name
                 patient[3],  # pesel
-                "Profil    Dokumentacja    Patronaż"
+                "Profil    Dokumentacja    Płatności"
             ))
     
     def add_appointment(self):
         messagebox.showinfo("Dodaj wizytę", "Formularz dodawania nowej wizyty")
     
-    def add_documentation(self):
-        messagebox.showinfo("Dodaj dokumentację", "Formularz dodawania nowej dokumentacji")
+    #def add_documentation(self):
+    #    messagebox.showinfo("Dodaj dokumentację", "Formularz dodawania nowej dokumentacji")
     
-    def add_payment(self):
-        messagebox.showinfo("Dodaj płatność", "Formularz dodawania nowej płatności")
+    #def add_payment(self):
+    #    messagebox.showinfo("Dodaj płatność", "Formularz dodawania nowej płatności")
     
     def show_settings(self):
         messagebox.showinfo("Ustawienia", "Panel ustawień systemu")
@@ -613,9 +1051,9 @@ class DentalOfficeApp:
             ]
             
             # Pobierz płatności
-            self.cursor.execute("SELECT date, number, amount, status FROM payments")
+            self.cursor.execute("SELECT patient_id, date, number, amount, status FROM payments")
             self.payments = [
-                {"date": row[0], "number": row[1], "amount": row[2], "status": row[3]}
+                {"patient_id":row[0],"date": row[1], "number": row[2], "amount": row[3], "status": row[4]}
                 for row in self.cursor.fetchall()
             ]
             
