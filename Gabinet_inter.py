@@ -4,7 +4,7 @@ from datetime import datetime
 from PIL import Image, ImageTk
 from baza import create_db
 import sqlite3
-
+import datetime
 class DentalOfficeApp:
     def __init__(self, root):
         self.root = root #zmiana???
@@ -77,6 +77,8 @@ class DentalOfficeApp:
         self.create_patients_interface()
         self.create_documentation_interface()
         self.create_payments_interface()
+
+       
         
 
         
@@ -215,82 +217,353 @@ class DentalOfficeApp:
 
     
     def create_calendar_interface(self):
-        # Calendar frame
-        calendar_label = tk.Label(self.calendar_frame, text="Kalendarz wizyt", font=('Arial', 24, 'bold'))
-        calendar_label.pack(pady=20)
+            self.calendar_frame.configure(bg="#B6ECF8")
+            # Calendar frame
+            calendar_label = tk.Label(self.calendar_frame, text="Kalendarz wizyt", font=('Arial', 24, 'bold'), bg="white")
+            calendar_label.pack(pady=20)
+
+            # Ustawienie stałej daty na Poniedziałek 5 maja 2025
+            self.current_start_of_week = datetime.date(2025, 5, 5) 
+            self.current_end_of_week = self.current_start_of_week + datetime.timedelta(days=6)
         
-        # Week label
-        week_label = tk.Label(self.calendar_frame, text="5-11 MAJ 2025", font=('Arial', 16))
-        week_label.pack()
+            # Week label
+            self.week_label = tk.Label(self.calendar_frame, 
+                                       text=f"{self.current_start_of_week.day}-{self.current_end_of_week.day} {self.current_start_of_week.strftime('%B').upper()} {self.current_start_of_week.year}", 
+                                       font=('Arial', 16), bg="white")
+            self.week_label.pack()
+
+            # Calendar table
+            days = ["PN", "WT", "ŚR", "CZW", "PT", "SOB", "NIEDZ"]
+            times = ["10:00", "12:00", "13:00", "14:30", "16:30"]
         
-        # Calendar table
-        days = ["PN", "WT", "ŚR", "CZW", "PT", "SOB", "NIEDZ"]
-        times = ["10:00", "12:00", "13:00", "14:30", "16:30"]
-        
-        # Create a frame for the calendar grid
-        calendar_grid = tk.Frame(self.calendar_frame)
-        calendar_grid.pack(pady=20)
-        
-        # Create headers for days
-        for i, day in enumerate(days):
-            label = tk.Label(calendar_grid, text=day, width=15, relief='ridge', font=('Arial', 10, 'bold'))
-            label.grid(row=0, column=i, sticky='nsew')
-        
-        # Create time slots
-        for row, time in enumerate(times, start=1):
-            time_label = tk.Label(calendar_grid, text=time, width=8, relief='ridge')
-            time_label.grid(row=row, column=0, sticky='nsew')
+            self.day_to_col = {
+                (self.current_start_of_week + datetime.timedelta(days=i)).strftime('%Y-%m-%d'): i + 1
+                for i in range(len(days))
+            }
+            self.time_to_row = {time: i + 1 for i, time in enumerate(times)}
+
+            # Create a frame for the calendar grid
+            self.calendar_grid = tk.Frame(self.calendar_frame, bg="white")
+            self.calendar_grid.pack(pady=20)
+
+            # Create headers for days
+            for i, day in enumerate(days):
+                label = tk.Label(self.calendar_grid, text=day, width=15, relief='ridge', font=('Arial', 10, 'bold'))
+                label.grid(row=0, column=i + 1, sticky='nsew')
+
+            # Create time slots and empty labels for appointments
+            self.calendar_cells = {}
+            for row, time in enumerate(times, start=1):
+                time_label = tk.Label(self.calendar_grid, text=time, width=8, relief='ridge')
+                time_label.grid(row=row, column=0, sticky='nsew')
             
-            for col in range(1, len(days) + 1):
-                entry = tk.Label(calendar_grid, text="", width=15, height=2, relief='ridge', bg='white')
-                entry.grid(row=row, column=col, sticky='nsew')
+                for col in range(1, len(days) + 1):
+                    entry = tk.Label(self.calendar_grid, text="", width=15, height=2, relief='ridge', bg='white')
+                    entry.grid(row=row, column=col, sticky='nsew')
+                    self.calendar_cells[(row, col)] = entry
+
+            self.fill_calendar_with_appointments(self.current_start_of_week, self.current_end_of_week)
+
+            # --- Nowa ramka dla przycisków ---
+            button_frame = tk.Frame(self.calendar_frame, bg="#B6ECF8")
+            button_frame.pack(pady=20)
+
+            # Add appointment button
+            add_button = tk.Button(button_frame, text="DODAJ WIZYTĘ", command=self.add_appointment, width=20)
+            add_button.pack(side=tk.LEFT, padx=10) # Używamy side=tk.LEFT i padx
+
+            # Edit appointment button
+            edit_button = tk.Button(button_frame, text="EDYTUJ WIZYTĘ", command=self.edit_appointment, width=20)
+            edit_button.pack(side=tk.LEFT, padx=10) # Umieszczamy obok
+
+            # User info
+            user_frame = tk.Frame(self.calendar_frame)
+            user_frame.pack(pady=20)
+
+    # --- NOWA FUNKCJA DO WYPEŁNIANIA KALENDARZA ---
+    def fill_calendar_with_appointments(self, start_date, end_date):
+            # Wyczyść istniejące wpisy w kalendarzu przed ponownym wypełnieniem
+            for (row, col), label in self.calendar_cells.items():
+                label.config(text="", bg="white")
+
+            # Upewnij się, że self.appointments jest załadowane
+            if not hasattr(self, 'appointments') or not self.appointments:
+                self.load_data_from_db() # Upewnij się, że dane są załadowane
+
+            # Iteruj po załadowanych wizytach
+            for apt in self.appointments:
+                # Użyj kluczy słownika do pobierania danych
+                apt_date_str = apt["date"] 
+                apt_time_str = apt["time"]
+                patient_name = apt["patient"] # To jest złączenie last_name i first_name pacjenta
+
+                # Sprawdź, czy wizyta mieści się w bieżącym zakresie tygodnia
+                apt_date = datetime.datetime.strptime(apt_date_str, '%Y-%m-%d').date()
+                if start_date <= apt_date <= end_date:
+                    col_index = self.day_to_col.get(apt_date_str)
+                    row_index = self.time_to_row.get(apt_time_str)
+
+                    if col_index is not None and row_index is not None:
+                        current_text = self.calendar_cells[(row_index, col_index)].cget("text")
+                        new_text = f"{current_text}\n{patient_name}" if current_text else patient_name
+                    
+                        self.calendar_cells[(row_index, col_index)].config(text=new_text.strip(), bg='lightblue')
+
+
+    def add_appointment(self):
+            """Otwiera okno dialogowe do dodawania nowej wizyty."""
+            # Utwórz nowe okno Toplevel
+            add_apt_window = tk.Toplevel(self.root)
+            add_apt_window.title("Dodaj nową wizytę")
+            add_apt_window.geometry("400x300")
+            add_apt_window.transient(self.root) # Okno dialogowe będzie na wierzchu głównego okna
+            add_apt_window.grab_set() # Zablokuj interakcję z głównym oknem
+
+            # Tworzenie etykiet i pól wejściowych
+            tk.Label(add_apt_window, text="Wybierz pacjenta:").grid(row=0, column=0, padx=5, pady=5, sticky="w")
         
-        # Sample appointments
-        appointments_data = {
-            (1, 1): "T. Kat.",
-            (1, 3): "T. Kat.",
-            (2, 2): "D. Men.",
-            (3, 4): "Z. Mat.",
-            (4, 5): "W. Mt.",
-            (5, 6): "Z. Kit.",
-            (2, 1): "D. Now.",
-            (2, 2): "T. Wat.",
-            (2, 3): "Z. Nat.",
-            (2, 4): "T. Mat.",
-            (2, 5): "C. Men.",
-            (2, 6): "T. Zbt.",
-            (3, 1): "Z. Pat.",
-            (3, 2): "K. Pap.",
-            (3, 3): "Z. Mat.",
-            (3, 4): "W. Zno.",
-            (3, 5): "R. Zur.",
-            (3, 6): "R. Dyn.",
-            (4, 1): "A. Kot.",
-            (4, 2): "A. Mit.",
-            (4, 3): "A. Köb.",
-            (4, 4): "B. Bab.",
-            (4, 5): "W. Kat.",
-            (5, 1): "M. Konr.",
-            (5, 3): "M. Konr.",
-            (5, 4): "W. Lanz.",
-            (5, 5): "B. Kom.",
+            # ComboBox do wyboru pacjenta
+            self.patient_var = tk.StringVar()
+        
+            # Przygotuj listę pacjentów w formacie "Nazwisko Imię (PESEL)"
+            patient_options = [
+                f"{p['last_name']} {p['first_name']} ({p['pesel']})" 
+                for p in self.patients # Zakłada, że self.patients jest załadowane z load_data_from_db
+            ]
+            # Tworzymy słownik do mapowania stringów z ComboBoxa na ID pacjenta
+            self.patient_name_to_id = {
+                f"{p['last_name']} {p['first_name']} ({p['pesel']})": p['id']
+                for p in self.patients
+            }
+
+            self.patient_dropdown = ttk.Combobox(add_apt_window, textvariable=self.patient_var, 
+                                                 values=patient_options, state="readonly")
+            self.patient_dropdown.grid(row=0, column=1, padx=5, pady=5, sticky="ew")
+            self.patient_dropdown.set("Wybierz pacjenta...") # Domyślny tekst
+
+            tk.Label(add_apt_window, text="Data (RRRR-MM-DD):").grid(row=1, column=0, padx=5, pady=5, sticky="w")
+            self.date_entry = tk.Entry(add_apt_window)
+            self.date_entry.grid(row=1, column=1, padx=5, pady=5, sticky="ew")
+            self.date_entry.insert(0, datetime.date.today().strftime("%Y-%m-%d")) # Domyślna dzisiejsza data
+
+            tk.Label(add_apt_window, text="Godzina (HH:MM):").grid(row=2, column=0, padx=5, pady=5, sticky="w")
+            self.time_entry = tk.Entry(add_apt_window)
+            self.time_entry.grid(row=2, column=1, padx=5, pady=5, sticky="ew")
+            self.time_entry.insert(0, "10:00") # Domyślna godzina
+
+            tk.Label(add_apt_window, text="Procedura:").grid(row=3, column=0, padx=5, pady=5, sticky="w")
+            self.procedure_entry = tk.Entry(add_apt_window)
+            self.procedure_entry.grid(row=3, column=1, padx=5, pady=5, sticky="ew")
+
+            # Przycisk "Dodaj"
+            add_button = tk.Button(add_apt_window, text="Dodaj wizytę", 
+                                   command=lambda: self.save_appointment(add_apt_window))
+            add_button.grid(row=4, column=0, columnspan=2, pady=10)
+
+            # Skonfiguruj rozciąganie kolumn
+            add_apt_window.grid_columnconfigure(1, weight=1)
+
+    def save_appointment(self, window):
+            """Zapisuje nową wizytę do bazy danych."""
+            selected_patient_name = self.patient_var.get()
+            patient_id = self.patient_name_to_id.get(selected_patient_name) # Pobierz ID pacjenta
+
+            apt_date = self.date_entry.get()
+            apt_time = self.time_entry.get()
+            procedure = self.procedure_entry.get()
+
+            # Walidacja danych
+            if not patient_id:
+                messagebox.showerror("Błąd", "Proszę wybrać pacjenta.")
+                return
+            if not apt_date or not apt_time or not procedure:
+                messagebox.showerror("Błąd", "Wszystkie pola muszą być wypełnione.")
+                return
+        
+            # Podstawowa walidacja formatu daty i godziny (można rozszerzyć)
+            try:
+                datetime.datetime.strptime(apt_date, '%Y-%m-%d')
+                datetime.datetime.strptime(apt_time, '%H:%M')
+            except ValueError:
+                messagebox.showerror("Błąd", "Nieprawidłowy format daty (RRRR-MM-DD) lub godziny (HH:MM).")
+                return
+
+            try:
+                self.cursor.execute('''
+                    INSERT INTO appointments (patient_id, date, time, procedure)
+                    VALUES (?, ?, ?, ?)
+                ''', (patient_id, apt_date, apt_time, procedure))
+                self.conn.commit()
+                messagebox.showinfo("Sukces", "Wizyta dodana pomyślnie!")
+            
+                # Odśwież dane i widok kalendarza
+                self.load_data_from_db() # Ponownie załaduj dane z bazy
+                #current_start_of_week ustawione?
+                # Jeśli nie masz, możesz tymczasowo użyć daty z kalendarza
+                current_start_of_week = datetime.date(2025, 5, 5) # Zastąp to zmienną, którą śledzisz
+                current_end_of_week = current_start_of_week + datetime.timedelta(days=6)
+                self.fill_calendar_with_appointments(current_start_of_week, current_end_of_week)
+                window.destroy() # Zamknij okno dialogowe po dodaniu wizyty
+
+            except sqlite3.Error as e:
+                messagebox.showerror("Błąd bazy danych", f"Wystąpił błąd podczas dodawania wizyty: {e}")
+
+        
+    def edit_appointment(self):
+        """Otwiera okno dialogowe do edycji istniejącej wizyty."""
+        # Upewnij się, że dane wizyt i pacjentów są załadowane
+        if not hasattr(self, 'appointments') or not self.appointments:
+            self.load_data_from_db()
+        if not hasattr(self, 'patients') or not self.patients:
+            self.load_data_from_db()
+
+        edit_apt_window = tk.Toplevel(self.root)
+        edit_apt_window.title("Edytuj wizytę")
+        edit_apt_window.geometry("500x400")
+        edit_apt_window.transient(self.root)
+        edit_apt_window.grab_set()
+
+        tk.Label(edit_apt_window, text="Wybierz wizytę do edycji:").pack(pady=10)
+
+        # Lista wizyt do wyboru
+        self.selected_appointment_var = tk.StringVar()
+        
+        # Przygotuj listę wizyt w formacie "Data - Godzina - Pacjent - Procedura"
+        appointment_options = []
+        for apt in self.appointments:
+            display_text = f"{apt['date']} - {apt['time']} - {apt['patient']} - {apt['procedure']}"
+            appointment_options.append(display_text)
+        
+        self.appointment_display_to_data = {
+            f"{apt['date']} - {apt['time']} - {apt['patient']} - {apt['procedure']}": apt
+            for apt in self.appointments
         }
+
+        self.appointment_dropdown = ttk.Combobox(edit_apt_window, textvariable=self.selected_appointment_var,
+                                                 values=appointment_options, state="readonly", width=60)
+        self.appointment_dropdown.pack(pady=5)
+        self.appointment_dropdown.set("Wybierz wizytę...")
+
+        # Pola do edycji danych
+        form_frame = tk.Frame(edit_apt_window)
+        form_frame.pack(pady=10)
+
+        tk.Label(form_frame, text="Pacjent:").grid(row=0, column=0, padx=5, pady=5, sticky="w")
+        self.edit_patient_var = tk.StringVar()
+        patient_options = [f"{p['last_name']} {p['first_name']} ({p['pesel']})" for p in self.patients]
+        self.edit_patient_dropdown = ttk.Combobox(form_frame, textvariable=self.edit_patient_var,
+                                                  values=patient_options, state="readonly", width=30)
+        self.edit_patient_dropdown.grid(row=0, column=1, padx=5, pady=5, sticky="ew")
+
+        tk.Label(form_frame, text="Data (RRRR-MM-DD):").grid(row=1, column=0, padx=5, pady=5, sticky="w")
+        self.edit_date_entry = tk.Entry(form_frame, width=30)
+        self.edit_date_entry.grid(row=1, column=1, padx=5, pady=5, sticky="ew")
+
+        tk.Label(form_frame, text="Godzina (HH:MM):").grid(row=2, column=0, padx=5, pady=5, sticky="w")
+        self.edit_time_entry = tk.Entry(form_frame, width=30)
+        self.edit_time_entry.grid(row=2, column=1, padx=5, pady=5, sticky="ew")
+
+        tk.Label(form_frame, text="Procedura:").grid(row=3, column=0, padx=5, pady=5, sticky="w")
+        self.edit_procedure_entry = tk.Entry(form_frame, width=30)
+        self.edit_procedure_entry.grid(row=3, column=1, padx=5, pady=5, sticky="ew")
+
+        # Funkcja do wypełniania pól po wybraniu wizyty
+        def load_selected_appointment_data(*args):
+            selected_display_text = self.selected_appointment_var.get()
+            if selected_display_text and selected_display_text in self.appointment_display_to_data:
+                selected_apt = self.appointment_display_to_data[selected_display_text]
+                
+                # Ustawiamy wartości w polach edycji
+                self.edit_date_entry.delete(0, tk.END)
+                self.edit_date_entry.insert(0, selected_apt['date'])
+                
+                self.edit_time_entry.delete(0, tk.END)
+                self.edit_time_entry.insert(0, selected_apt['time'])
+                
+                self.edit_procedure_entry.delete(0, tk.END)
+                self.edit_procedure_entry.insert(0, selected_apt['procedure'])
+
+                # Wybierz pacjenta w ComboBoxie
+                current_patient_display = f"{selected_apt['patient_id']}" # To wymaga ID pacjenta w appointments
+                # Musimy znaleźć wyświetlaną nazwę pacjenta po jego ID
+                found_patient_name = ""
+                for p_id, p_display_name in self.patient_name_to_id.items(): # Odwróćmy słownik
+                    if p_display_name == selected_apt['patient_id']: # Porównujemy ID
+                         found_patient_name = p_id
+                         break
+                
+                # Przygotuj listę patient_options z oryginalnego formatu z ID, aby znaleźć odpowiedni string
+                patient_display_name_from_id = ""
+                for p in self.patients:
+                    if p['id'] == selected_apt['patient_id']:
+                        patient_display_name_from_id = f"{p['last_name']} {p['first_name']} ({p['pesel']})"
+                        break
+                
+                if patient_display_name_from_id:
+                    self.edit_patient_var.set(patient_display_name_from_id)
+                else:
+                    self.edit_patient_var.set("Wybierz pacjenta...") # Domyślna wartość, jeśli nie znaleziono
+
+        self.selected_appointment_var.trace("w", load_selected_appointment_data)
+
+        # Przycisk "Zapisz zmiany"
+        save_button = tk.Button(edit_apt_window, text="Zapisz zmiany",
+                                command=lambda: self.save_edited_appointment(edit_apt_window))
+        save_button.pack(pady=10)
+
+        edit_apt_window.grid_columnconfigure(1, weight=1)
+    def save_edited_appointment(self, window):
+        """Zapisuje zmiany w istniejącej wizycie do bazy danych."""
+        selected_display_text = self.selected_appointment_var.get()
+        if not selected_display_text:
+            messagebox.showerror("Błąd", "Proszę wybrać wizytę do edycji.")
+            return
+
+        selected_apt_data = self.appointment_display_to_data.get(selected_display_text)
+        if not selected_apt_data:
+            messagebox.showerror("Błąd", "Nie znaleziono danych wybranej wizyty.")
+            return
+
+        apt_id = selected_apt_data['id'] # Pobieramy ID wizyty do edycji
+
+        selected_patient_name_for_edit = self.edit_patient_var.get()
+        new_patient_id = self.patient_name_to_id.get(selected_patient_name_for_edit)
+
+        new_apt_date = self.edit_date_entry.get()
+        new_apt_time = self.edit_time_entry.get()
+        new_procedure = self.edit_procedure_entry.get()
+
+        # Walidacja danych
+        if not new_patient_id:
+            messagebox.showerror("Błąd", "Proszę wybrać pacjenta.")
+            return
+        if not new_apt_date or not new_apt_time or not new_procedure:
+            messagebox.showerror("Błąd", "Wszystkie pola muszą być wypełnione.")
+            return
         
-        # Fill in appointments
-        for (row, col), text in appointments_data.items():
-            if row <= len(times) and col <= len(days):
-                label = tk.Label(calendar_grid, text=text, width=15, height=2, relief='ridge', bg='lightblue')
-                label.grid(row=row, column=col, sticky='nsew')
-        
-        # Add appointment button
-        add_button = tk.Button(self.calendar_frame, text="DODAJ WIZYTĘ", command=self.add_appointment, width=20)
-        add_button.pack(pady=20)
-        
-        # User info
-        user_frame = tk.Frame(self.calendar_frame)
-        user_frame.pack(pady=20)
-        
-    
+        try:
+            datetime.datetime.strptime(new_apt_date, '%Y-%m-%d')
+            datetime.datetime.strptime(new_apt_time, '%H:%M')
+        except ValueError:
+            messagebox.showerror("Błąd", "Nieprawidłowy format daty (RRRR-MM-DD) lub godziny (HH:MM).")
+            return
+
+        try:
+            self.cursor.execute('''
+                UPDATE appointments
+                SET patient_id = ?, date = ?, time = ?, procedure = ?
+                WHERE id = ?
+            ''', (new_patient_id, new_apt_date, new_apt_time, new_procedure, apt_id))
+            self.conn.commit()
+            messagebox.showinfo("Sukces", "Wizyta zaktualizowana pomyślnie!")
+            
+            # Odśwież dane i widok kalendarza
+            self.load_data_from_db()
+            self.fill_calendar_with_appointments(self.current_start_of_week, self.current_end_of_week)
+            window.destroy()
+
+        except sqlite3.Error as e:
+            messagebox.showerror("Błąd bazy danych", f"Wystąpił błąd podczas aktualizacji wizyty: {e}")
     def create_patients_interface(self):
         self.patients_frame.configure(bg="#B6ECF8")
         # Patients frame
@@ -1014,8 +1287,8 @@ class DentalOfficeApp:
                 "Profil    Dokumentacja    Płatności"
             ))
     
-    def add_appointment(self):
-        messagebox.showinfo("Dodaj wizytę", "Formularz dodawania nowej wizyty")
+    #def add_appointment(self):
+    #    messagebox.showinfo("Dodaj wizytę", "Formularz dodawania nowej wizyty")
     
     #def add_documentation(self):
     #    messagebox.showinfo("Dodaj dokumentację", "Formularz dodawania nowej dokumentacji")
@@ -1041,12 +1314,12 @@ class DentalOfficeApp:
             
             # Pobierz wizyty z nazwiskami pacjentów
             self.cursor.execute('''
-                SELECT DISTINCT a.date, a.time, p.last_name || ' ' || p.first_name as patient, a.procedure 
+                SELECT a.id, a.date, a.time, p.last_name || ' ' || p.first_name as patient, a.procedure, a.patient_id
                 FROM appointments a
                 JOIN patients p ON a.patient_id = p.id
             ''')
             self.appointments = [
-                {"date": row[0], "time": row[1], "patient": row[2], "procedure": row[3]}
+                {"id": row[0], "date": row[1], "time": row[2], "patient": row[3], "procedure": row[4], "patient_id": row[5]}
                 for row in self.cursor.fetchall()
             ]
             
