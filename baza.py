@@ -6,6 +6,7 @@ def create_db():
     c = conn.cursor()
    
     #c.execute("DELETE FROM payments")  # usuwa wszystkie płatności
+    #c.execute("DELETE FROM appointments")
     # Tworzenie tabel
     c.execute('''
         CREATE TABLE IF NOT EXISTS users (
@@ -37,7 +38,8 @@ def create_db():
             time TEXT NOT NULL,
             patient_id INTEGER,
             procedure TEXT,
-            FOREIGN KEY(patient_id) REFERENCES patients(id)
+            FOREIGN KEY(patient_id) REFERENCES patients(id),
+            UNIQUE(date, time, patient_id)
         )
     ''')
 
@@ -93,9 +95,18 @@ def create_db():
         ("2025-05-05", "13:00", 3, "wyrywanie:8"),
         ("2026-05-05", "11:00", 1, "wybielanie")
     ]
-    c.executemany('''
-        INSERT OR IGNORE INTO appointments (date, time, patient_id, procedure) VALUES (?, ?, ?, ?)
-    ''', appointments)
+    for appointments in appointments:
+        try:
+            c.execute('''
+                INSERT INTO appointments (date, time, patient_id, procedure)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT(date, time, patient_id) DO NOTHING
+            ''', appointments)
+        except sqlite3.Error as e:
+            print(f"Błąd przy wstawianiu wizyt: {e}")
+    #c.executemany('''
+    #    INSERT OR IGNORE INTO appointments (date, time, patient_id, procedure) VALUES (?, ?, ?, ?)
+    #''', appointments)
     #c.execute("ALTER TABLE payments ADD COLUMN patient_id INTEGER")
     # Dodanie przykładowych płatności
     payments = [
